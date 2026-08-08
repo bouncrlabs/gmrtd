@@ -304,9 +304,12 @@ func (cas ChipAuthStatus) String() string {
 }
 
 type PassiveAuthResult struct {
-	Success bool         `json:"success"`
-	Sod     *PassiveAuth `json:"sod,omitempty"`
-	CardSec *PassiveAuth `json:"cardSec,omitempty"`
+	Success              bool         `json:"success"`
+	DataGroupHashesValid *bool        `json:"dataGroupHashesValid,omitempty"`
+	SodSignatureValid    *bool        `json:"sodSignatureValid,omitempty"`
+	CscaChainValid       *bool        `json:"cscaChainValid,omitempty"`
+	Sod                  *PassiveAuth `json:"sod,omitempty"`
+	CardSec              *PassiveAuth `json:"cardSec,omitempty"`
 }
 
 type PassiveAuth struct {

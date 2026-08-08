@@ -132,7 +132,7 @@ func TestPassiveAuth(t *testing.T) {
 		}
 
 		// verify Result is as expected
-		if paResult == nil || paResult.Success != tc.expPaResultSuccess {
+		if paResult == nil || paResult.Success != tc.expPaResultSuccess || paResult.DataGroupHashesValid == nil || !*paResult.DataGroupHashesValid || paResult.SodSignatureValid == nil || !*paResult.SodSignatureValid || paResult.CscaChainValid == nil || !*paResult.CscaChainValid {
 			t.Errorf("Expected success result")
 		}
 	}
@@ -352,7 +352,7 @@ func TestPassiveAuthNoCscaCertsForCountryError(t *testing.T) {
 	}
 
 	// verify Result is as expected
-	if paResult == nil || paResult.Success != expPaResultSuccess {
+	if paResult == nil || paResult.Success != expPaResultSuccess || paResult.DataGroupHashesValid == nil || !*paResult.DataGroupHashesValid || paResult.SodSignatureValid == nil || !*paResult.SodSignatureValid || paResult.CscaChainValid == nil || *paResult.CscaChainValid {
 		t.Errorf("Expected success result")
 	}
 
