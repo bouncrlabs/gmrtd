@@ -47,6 +47,9 @@ type caEcdhEvidence struct {
 }
 
 func selectChipAuthParams(doc *document.Document) (*ChipAuthParams, error) {
+	if doc == nil || doc.Mf.Lds1.Dg14 == nil || doc.Mf.Lds1.Dg14.SecInfos == nil {
+		return nil, fmt.Errorf("[selectChipAuthParams] DG14 security infos are missing")
+	}
 	secInfos := doc.Mf.Lds1.Dg14.SecInfos
 
 	caInfo, caAlgInfo, algInferred, err := resolveCAInfo(secInfos)
@@ -532,7 +535,8 @@ func VerifyEvidence(doc *document.Document, evidence *document.ChipAuthEvidence)
 
 	if len(evidence.TermPri) > maxEvidenceFieldLen ||
 		len(evidence.TermPubKey) > maxEvidenceFieldLen ||
-		len(evidence.SmRapdu) > maxEvidenceFieldLen {
+		len(evidence.SmRapdu) > maxEvidenceFieldLen ||
+		len(evidence.SmSsc) > maxEvidenceFieldLen {
 		return nil, fmt.Errorf("[VerifyEvidence] evidence field exceeds maximum length (%d)", maxEvidenceFieldLen)
 	}
 
