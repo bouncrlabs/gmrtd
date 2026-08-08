@@ -45,7 +45,7 @@ func TestEncode(t *testing.T) {
 			in_p2:     0x04,
 			in_data:   utils.HexToBytes(""),
 			in_le:     15575,
-			exp_bytes: utils.HexToBytes("00b000043cd7"),
+			exp_bytes: utils.HexToBytes("00b00004003cd7"),
 		},
 		{
 			// READ BINARY - extended length - secure message encoded - Le=65536 (ie max)

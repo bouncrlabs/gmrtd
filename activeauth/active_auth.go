@@ -229,7 +229,7 @@ func (activeAuth *ActiveAuth) DoActiveAuth() (result *document.ActiveAuthResult,
 		return &document.ActiveAuthResult{Success: false}, fmt.Errorf("[DoActiveAuth] doInternalAuthenticate error: %w", err)
 	}
 
-	result, err = ValidateActiveAuthSignature((*activeAuth.document).Mf.Lds1.Dg15, intAuthRspBytes, rndIfd)
+	result, err = ValidateActiveAuthSignature(*activeAuth.document, intAuthRspBytes, rndIfd)
 	if err != nil {
 		return result, fmt.Errorf("[DoActiveAuth] ValidateActiveAuthSignature error: %w", err)
 	}
@@ -242,12 +242,15 @@ func (activeAuth *ActiveAuth) DoActiveAuth() (result *document.ActiveAuthResult,
 }
 
 // - reduces dependency on 'activeAuth', which is not always be setup fully by caller
-func ValidateActiveAuthSignature(dg15 *document.DG15, intAuthRspBytes, rndIfd []byte) (result *document.ActiveAuthResult, err error) {
+func ValidateActiveAuthSignature(doc *document.Document, intAuthRspBytes, rndIfd []byte) (result *document.ActiveAuthResult, err error) {
+	if doc == nil || doc.Mf.Lds1.Dg15 == nil {
+		return nil, fmt.Errorf("[ValidateActiveAuthSignature] DG15 is nil")
+	}
 	var errContext string
 
 	var subPubKeyInfo cms.SubjectPublicKeyInfo
 
-	subPubKeyInfo, err = cms.Asn1decodeSubjectPublicKeyInfo(dg15.SubjectPublicKeyInfoBytes)
+	subPubKeyInfo, err = cms.Asn1decodeSubjectPublicKeyInfo(doc.Mf.Lds1.Dg15.SubjectPublicKeyInfoBytes)
 	if err != nil {
 		return nil, fmt.Errorf("[ValidateActiveAuthSignature]Asn1decodeSubjectPublicKeyInfo error: %w", err)
 	}
@@ -342,7 +345,21 @@ func ValidateActiveAuthSignature(dg15 *document.DG15, intAuthRspBytes, rndIfd []
 				Y:     ecPoint.Y,
 			}
 
-			var alg = cryptoutils.CryptoHashFromEcPubKey(pub)
+			alg := cryptoutils.CryptoHashFromEcPubKey(pub)
+			if doc.Mf.Lds1.Dg14 != nil && doc.Mf.Lds1.Dg14.SecInfos != nil && len(doc.Mf.Lds1.Dg14.SecInfos.ActiveAuthInfos) > 0 {
+				switch doc.Mf.Lds1.Dg14.SecInfos.ActiveAuthInfos[0].SignatureAlgorithm.String() {
+				case "1.2.840.10045.4.3.1", "0.4.0.127.0.7.1.1.4.1.2":
+					alg = crypto.SHA224
+				case "1.2.840.10045.4.3.2", "0.4.0.127.0.7.1.1.4.1.3":
+					alg = crypto.SHA256
+				case "1.2.840.10045.4.3.3", "0.4.0.127.0.7.1.1.4.1.4":
+					alg = crypto.SHA384
+				case "1.2.840.10045.4.3.4", "0.4.0.127.0.7.1.1.4.1.5":
+					alg = crypto.SHA512
+				default:
+					return result, fmt.Errorf("(ValidateActiveAuthSignature) unsupported declared signature algorithm: %s", doc.Mf.Lds1.Dg14.SecInfos.ActiveAuthInfos[0].SignatureAlgorithm)
+				}
+			}
 			var hash = cryptoutils.CryptoHash(alg, rndIfd)
 
 			// Try plain r||s format first (TR-03110, used by most passports)
@@ -418,5 +435,5 @@ func VerifyEvidence(doc *document.Document, evidence *document.ActiveAuthEvidenc
 		return nil, fmt.Errorf("[VerifyEvidence] DG15 is nil")
 	}
 
-	return ValidateActiveAuthSignature(doc.Mf.Lds1.Dg15, evidence.Signature, evidence.Nonce)
+	return ValidateActiveAuthSignature(doc, evidence.Signature, evidence.Nonce)
 }

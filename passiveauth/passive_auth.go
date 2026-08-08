@@ -46,6 +46,7 @@ func PassiveAuth(doc *document.Document, trustedCerts cms.CertPool) (result *doc
 
 		slog.Debug("PassiveAuth", "certChain(SOD)-cnt", len(result.Sod.CertChain))
 	}
+	result.Success = true
 
 	/*
 	* verify CardSecurity (if present)
@@ -54,14 +55,12 @@ func PassiveAuth(doc *document.Document, trustedCerts cms.CertPool) (result *doc
 		result.CardSec = &document.PassiveAuth{}
 		result.CardSec.CertChain, err = doc.Mf.CardSecurity.SD.Verify(countryCscaCertPool)
 		if err != nil {
+			result.CardSec = nil
 			return result, fmt.Errorf("[PassiveAuth] unable to verify SignedData (CardSecurity): %w", err)
 		}
 
 		slog.Debug("PassiveAuth", "certChain(CardSecurity)-cnt", len(result.CardSec.CertChain))
 	}
-
-	// update result to indicate success
-	result.Success = true
 
 	return result, nil
 }

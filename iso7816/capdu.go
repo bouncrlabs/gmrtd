@@ -103,7 +103,6 @@ func (apdu *CApdu) EncodeLe() []byte {
 	if apdu.IsExtended() {
 		// Lc = 2 or 3 bytes
 		// valid range: 1..65536 (note 65536->0x0000)
-
 		// NB bytes will correctly be x0000 if 65536!
 		leBytes = append(leBytes, byte((apdu.le/256)&0xff))
 		leBytes = append(leBytes, byte(apdu.le%256))
@@ -129,6 +128,9 @@ func (apdu *CApdu) Encode() []byte {
 	out = append(out, apdu.EncodeLc()...)
 	if len(apdu.data) > 0 {
 		out = append(out, apdu.data...)
+	}
+	if apdu.IsExtended() && !apdu.HaveData() && apdu.HaveLe() {
+		out = append(out, 0)
 	}
 	out = append(out, apdu.EncodeLe()...)
 

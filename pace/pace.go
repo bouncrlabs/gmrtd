@@ -414,7 +414,7 @@ func (pace *Pace) keyAgreementGmEcDh(domainParams *DomainParams, G *cryptoutils.
 		var termShared *cryptoutils.EcPoint = cryptoutils.DoEcDh(termKeypair.Pri, chipPub, domainParams.ec)
 
 		// NB secret is just based on 'x'
-		sharedSecret = termShared.X.Bytes()
+		sharedSecret = cryptoutils.EncodeEcFieldElement(domainParams.ec, termShared.X)
 
 		slog.Debug("keyAgreementGmEcDh", "shared-secret", utils.BytesToHex(sharedSecret))
 	}
@@ -740,6 +740,9 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, camResult *document.Pac
 	// update result to indicate the selected OID/ParameterId
 	result.Oid = paceConfig.oid
 	result.ParameterId = domainParams.id
+	if paceConfig.mapping == CAM {
+		camResult = &document.PaceCamResult{}
+	}
 
 	slog.Debug("DoPace", "selected paceConfig", paceConfig.String())
 
@@ -747,19 +750,19 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, camResult *document.Pac
 
 	kKdf, err = keyForPassword(paceConfig, pace.password)
 	if err != nil {
-		return result, nil, fmt.Errorf("[DoPACE] keyForPassword error: %w", err)
+		return result, camResult, fmt.Errorf("[DoPACE] keyForPassword error: %w", err)
 	}
 
 	// init PACE (via 'MSE:Set AT' command)
 	if err = pace.doApduMseSetAT(paceConfig, domainParams); err != nil {
-		return result, nil, fmt.Errorf("[DoPACE] doApduMseSetAT error: %w", err)
+		return result, camResult, fmt.Errorf("[DoPACE] doApduMseSetAT error: %w", err)
 	}
 
 	// get nonce
 	var s []byte
 	s, err = pace.getNonce(paceConfig, kKdf)
 	if err != nil {
-		return result, nil, fmt.Errorf("[DoPACE] getNonce error: %w", err)
+		return result, camResult, fmt.Errorf("[DoPACE] getNonce error: %w", err)
 	}
 
 	// process based on the mapping type (GM/IM/CAM) and the key type (ECDH/DH)
@@ -768,7 +771,7 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, camResult *document.Pac
 		var camEvidence *paceCamEvidence
 		camEvidence, err = pace.doGenericMappingGmCam(paceConfig, domainParams, s)
 		if err != nil {
-			return result, nil, fmt.Errorf("[DoPACE] doGenericMappingGmCam error: %w", err)
+			return result, camResult, fmt.Errorf("[DoPACE] doGenericMappingGmCam error: %w", err)
 		}
 		if paceConfig.mapping == CAM && camEvidence != nil {
 			camResult = &document.PaceCamResult{
@@ -788,7 +791,7 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, camResult *document.Pac
 			}
 		}
 	case IM:
-		return result, nil, fmt.Errorf("[DoPACE] PACE-IM NOT IMPLEMENTED")
+		return result, camResult, fmt.Errorf("[DoPACE] PACE-IM NOT IMPLEMENTED")
 	}
 
 	// update result to indicate success
@@ -934,7 +937,7 @@ func VerifyEvidence(doc *document.Document, evidence *document.PaceCamEvidence) 
 
 	// re-derive key-agreement shared secret and session keys
 	kaShared := cryptoutils.DoEcDh(evidence.TermKaPri, chipKaPub, domainParams.ec)
-	sharedSecret := kaShared.X.Bytes()
+	sharedSecret := cryptoutils.EncodeEcFieldElement(domainParams.ec, kaShared.X)
 	ksEnc := cryptoutils.KDF(sharedSecret, cryptoutils.KDF_COUNTER_KSENC, paceConfig.cipher, paceConfig.keyLengthBits)
 
 	// decrypt EcadIC to recover caIC

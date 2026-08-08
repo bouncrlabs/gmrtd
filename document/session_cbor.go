@@ -36,23 +36,33 @@ type cborAAEvidence struct {
 }
 
 type cborChipAuthBundle struct {
-	PaceCam    *cborPaceCamEvidence `cbor:"paceCam,omitempty"`
-	ChipAuth   *cborCAEvidence      `cbor:"chipAuth,omitempty"`
-	ActiveAuth *cborAAEvidence      `cbor:"activeAuth,omitempty"`
+	PaceCamAttempted    bool                 `cbor:"paceCamAttempted,omitempty"`
+	ChipAuthAttempted   bool                 `cbor:"chipAuthAttempted,omitempty"`
+	ActiveAuthAttempted bool                 `cbor:"activeAuthAttempted,omitempty"`
+	PaceCam             *cborPaceCamEvidence `cbor:"paceCam,omitempty"`
+	ChipAuth            *cborCAEvidence      `cbor:"chipAuth,omitempty"`
+	ActiveAuth          *cborAAEvidence      `cbor:"activeAuth,omitempty"`
 }
 
 const chipAuthEvidenceMagic = "gmrtd-chip-auth-evidence"
 const chipAuthEvidenceMinVersion uint = 2 // v1 lacked TermMapPub and TermKaPub
-const chipAuthEvidenceVersion uint = 2
+const chipAuthEvidenceVersion uint = 3
 
 type ChipAuthEvidenceBundle struct {
-	PaceCam    *PaceCamEvidence
-	ChipAuth   *ChipAuthEvidence
-	ActiveAuth *ActiveAuthEvidence
+	PaceCamAttempted    bool
+	ChipAuthAttempted   bool
+	ActiveAuthAttempted bool
+	PaceCam             *PaceCamEvidence
+	ChipAuth            *ChipAuthEvidence
+	ActiveAuth          *ActiveAuthEvidence
 }
 
 func (session *Session) ChipAuthEvidenceToCbor() ([]byte, error) {
-	var bundle cborChipAuthBundle
+	bundle := cborChipAuthBundle{
+		PaceCamAttempted:    session.PaceCamResult != nil,
+		ChipAuthAttempted:   session.ChipAuthResult != nil,
+		ActiveAuthAttempted: session.ActiveAuthResult != nil,
+	}
 
 	if session.PaceCamResult != nil && session.PaceCamResult.Evidence != nil {
 		e := session.PaceCamResult.Evidence
@@ -131,7 +141,11 @@ func NewChipAuthEvidenceFromCbor(data []byte) (*ChipAuthEvidenceBundle, error) {
 		return nil, fmt.Errorf("[NewChipAuthEvidenceFromCbor] cbor.Unmarshal(bundle) error: %w", err)
 	}
 
-	var result ChipAuthEvidenceBundle
+	result := ChipAuthEvidenceBundle{
+		PaceCamAttempted:    bundle.PaceCamAttempted,
+		ChipAuthAttempted:   bundle.ChipAuthAttempted,
+		ActiveAuthAttempted: bundle.ActiveAuthAttempted,
+	}
 
 	if bundle.PaceCam != nil {
 		result.PaceCam = &PaceCamEvidence{

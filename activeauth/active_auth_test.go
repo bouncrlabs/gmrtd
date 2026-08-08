@@ -537,7 +537,7 @@ func TestEcdsaValidateActiveAuthSignatureAllCurves(t *testing.T) {
 
 		var aaResult *document.ActiveAuthResult
 
-		aaResult, err = ValidateActiveAuthSignature(dg15, tc.signature, tc.rndIfd)
+		aaResult, err = ValidateActiveAuthSignature(&document.Document{Mf: document.MasterFile{Lds1: document.LDS1{Dg15: dg15}}}, tc.signature, tc.rndIfd)
 		if tc.expectErr && err == nil {
 			t.Errorf("%s: expected error, got nil", tc.name)
 		}
@@ -675,7 +675,7 @@ func TestEcdsaValidateActiveAuthSignatureDERFormat(t *testing.T) {
 
 		var aaResult *document.ActiveAuthResult
 
-		aaResult, err = ValidateActiveAuthSignature(dg15, tc.signature, tc.rndIfd)
+		aaResult, err = ValidateActiveAuthSignature(&document.Document{Mf: document.MasterFile{Lds1: document.LDS1{Dg15: dg15}}}, tc.signature, tc.rndIfd)
 		if tc.expectErr && err == nil {
 			t.Errorf("%s: expected error, got nil", tc.name)
 		}
@@ -843,7 +843,7 @@ func TestValidateActiveAuthSignatureRsaEmptyAuthRspBytes(t *testing.T) {
 		t.Fatalf("Unexpected error: %s", err)
 	}
 
-	_, err = ValidateActiveAuthSignature(dg15, authRspBytes, rndIfd)
+	_, err = ValidateActiveAuthSignature(&document.Document{Mf: document.MasterFile{Lds1: document.LDS1{Dg15: dg15}}}, authRspBytes, rndIfd)
 	if err == nil {
 		t.Fatalf("Expected error")
 	}
