@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"log/slog"
-	"math/big"
 
 	"github.com/gmrtd/gmrtd/tlv"
 	"github.com/gmrtd/gmrtd/utils"
@@ -17,7 +16,6 @@ const INS_GENERAL_AUTHENTICATE = byte(0x86)
 const INS_INTERNAL_AUTHENTICATE = byte(0x88)
 const INS_SELECT = byte(0xA4)
 const INS_READ_BINARY = byte(0xB0)
-const INS_READ_BINARY_ODD = byte(0xB1)
 
 // default to 65,535 maximum file (TLV) size
 // - as we always read the first 4 bytes (so max 2 byte length)
@@ -45,8 +43,6 @@ type NfcSession struct {
 	readFileMaxTlvLength tlv.TlvLength
 	readFileMaxChunks    int
 	maxLe                int
-	maxReadLe            int
-	readProgress         func(int, int)
 	apduLog              *ApduLog
 	lastApduLogEntry     *ApduLogEntry
 }
@@ -57,7 +53,6 @@ func NewNfcSession(transceiver Transceiver) *NfcSession {
 	nfc.readFileMaxTlvLength = READ_FILE_MAX_TLV_LENGTH
 	nfc.readFileMaxChunks = READ_FILE_MAX_CHUNKS
 	nfc.maxLe = 256
-	nfc.maxReadLe = 256
 	nfc.apduLog = NewApduLog()
 
 	return &nfc
@@ -73,12 +68,7 @@ func (nfc *NfcSession) SM() SecureMessenger {
 
 func (nfc *NfcSession) SetMaxLe(value int) {
 	nfc.maxLe = value
-	nfc.maxReadLe = value
 }
-
-func (nfc *NfcSession) SetReadSize(value int) { nfc.maxReadLe = value }
-
-func (nfc *NfcSession) SetReadProgress(progress func(int, int)) { nfc.readProgress = progress }
 
 func (nfc *NfcSession) ApduLog() *ApduLog {
 	return nfc.apduLog
@@ -280,14 +270,7 @@ func (nfc *NfcSession) SelectAid(aid []byte) (selected bool, err error) {
 func (nfc *NfcSession) ReadBinaryFromOffset(offset, length int) ([]byte, error) {
 	slog.Debug("ReadBinaryFromOffset", "offset", offset, "length", length)
 
-	ins, p1, p2, commandData := INS_READ_BINARY, byte(offset/256), byte(offset%256), []byte(nil)
-	expectedLength := length
-	if offset > 32767 {
-		ins, p1, p2 = INS_READ_BINARY_ODD, 0, 0
-		commandData = tlv.NewTlvSimpleNode(0x54, big.NewInt(int64(offset)).Bytes()).Encode()
-		expectedLength = len(tlv.NewTlvSimpleNode(0x53, make([]byte, length)).Encode())
-	}
-	capdu := NewCApdu(0x00, ins, p1, p2, commandData, expectedLength)
+	var capdu *CApdu = NewCApdu(0x00, INS_READ_BINARY, byte(offset/256), byte(offset%256), nil, length)
 
 	rapdu, err := nfc.DoAPDU(capdu, fmt.Sprintf("Read Binary (offset:%d, length:%d)", offset, length))
 	if err != nil {
@@ -298,20 +281,12 @@ func (nfc *NfcSession) ReadBinaryFromOffset(offset, length int) ([]byte, error) 
 		return nil, fmt.Errorf("[ReadBinaryFromOffset] Invalid status (offset:%d,length:%d):%X", offset, length, rapdu.Status)
 	}
 
-	data := rapdu.Data
-	if ins == INS_READ_BINARY_ODD {
-		data, err = tlv.UnwrapTag(0x53, data)
-		if err != nil {
-			return nil, fmt.Errorf("[ReadBinaryFromOffset] Invalid odd response (offset:%d,length:%d): %w", offset, length, err)
-		}
-	}
-
-	if len(data) > length {
+	if len(rapdu.Data) > length {
 		// more data than requested, possible abuse
-		return nil, fmt.Errorf("[ReadBinaryFromOffset] More data than requested (act:%1d, req:%1d)", len(data), length)
+		return nil, fmt.Errorf("[ReadBinaryFromOffset] More data than requested (act:%1d, req:%1d)", len(rapdu.Data), length)
 	}
 
-	return data, nil
+	return rapdu.Data, nil
 }
 
 // returns: file contents OR nil if file not found
@@ -356,14 +331,11 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte, err error) {
 		totalBytes = int(tmpTlvLength)
 		totalBytes += 4 - tmpBuf.Len()
 	}
-	if nfc.readProgress != nil {
-		nfc.readProgress(fileBuf.Len(), totalBytes)
-	}
 
 	// read remainder of file
 	if fileBuf.Len() < totalBytes {
 		chunkCnt := 0
-		maxReadAmount := nfc.maxReadLe
+		maxReadAmount := nfc.maxLe
 
 		for {
 			// limit the maximum number of chunks permitted when reading a file
@@ -387,7 +359,7 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte, err error) {
 				}
 				if effectiveMax != maxReadAmount {
 					maxReadAmount = effectiveMax
-					nfc.maxReadLe = effectiveMax
+					nfc.maxLe = effectiveMax
 				}
 			} else {
 				var readErr error
@@ -405,9 +377,6 @@ func (nfc *NfcSession) ReadFile(fileId uint16) (fileData []byte, err error) {
 			}
 
 			fileBuf.Write(tmpData)
-			if nfc.readProgress != nil {
-				nfc.readProgress(fileBuf.Len(), totalBytes)
-			}
 
 			if fileBuf.Len() >= totalBytes {
 				break
