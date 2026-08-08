@@ -874,7 +874,7 @@ RFC 5280            PKIX Certificate and CRL Profile            May 2008
 			}
 */
 
-func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, trustedCerts CertPool) (certChain [][]byte, err error) {
+func (si *SignerInfo) VerifySignatureWithConfig(config *CMSConfig, sd *SignedData) (cert *Certificate, err error) {
 	var dataToHash []byte
 	var digestAlg *asn1.ObjectIdentifier
 	var signatureAlg *asn1.ObjectIdentifier
@@ -919,7 +919,7 @@ func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, truste
 
 	slog.Debug("Verify", "digestAlg", digestAlg.String(), "digest", utils.BytesToHex(digest))
 
-	cert, err := si.selectCertificate(sd)
+	cert, err = si.selectCertificate(sd)
 	if err != nil {
 		return nil, fmt.Errorf("[Verify] selectCertificate error: %w", err)
 	}
@@ -969,24 +969,20 @@ func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, truste
 		return nil, fmt.Errorf("[Verify] VerifySignature error: %w", err)
 	}
 
-	// record the 'initial' certificate
-	certChain = append(certChain, bytes.Clone(cert.Raw))
+	return cert, nil
+}
 
-	/*
-	* verify the cert/chain
-	* so far we've just verified the signedData and enveloped-data we haven't actually verified that the certificate is signed by someone we trust
-	 */
-	{
-		tmpCertChain, err := cert.VerifyWithConfig(config, trustedCerts)
-		if err != nil {
-			return nil, fmt.Errorf("[Verify] cert.Verify error: %w", err)
-		}
-
-		// record the certificate(s) used during verification
-		certChain = append(certChain, tmpCertChain...)
+func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, trustedCerts CertPool) (certChain [][]byte, err error) {
+	cert, err := si.VerifySignatureWithConfig(config, sd)
+	if err != nil {
+		return nil, err
 	}
-
-	return certChain, nil
+	certChain = append(certChain, bytes.Clone(cert.Raw))
+	tmpCertChain, err := cert.VerifyWithConfig(config, trustedCerts)
+	if err != nil {
+		return nil, fmt.Errorf("[Verify] cert.Verify error: %w", err)
+	}
+	return append(certChain, tmpCertChain...), nil
 }
 
 func (si *SignerInfo) Verify(sd *SignedData, trustedCerts CertPool) (certChain [][]byte, err error) {
