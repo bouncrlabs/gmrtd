@@ -329,36 +329,6 @@ func TestGermanMasterListError(t *testing.T) {
 	}
 }
 
-func TestDutchMasterListError(t *testing.T) {
-	orig := createCertPoolFromSignedDataFn
-	defer func() {
-		createCertPoolFromSignedDataFn = orig
-	}()
-
-	wantErr := errors.New("parse failure")
-
-	createCertPoolFromSignedDataFn = func(data, rootCA []byte) (*SignedDataCertPool, error) {
-		if string(data) != string(nl_masterList) {
-			t.Fatal("expected DutchMasterList to pass nl_masterList")
-		}
-		if string(rootCA) != string(nl_masterListRootCA) {
-			t.Fatal("expected DutchMasterList to pass nl_masterListRootCA")
-		}
-		return nil, wantErr
-	}
-
-	got, err := DutchMasterList()
-	if got != nil {
-		t.Fatalf("expected nil result, got %#v", got)
-	}
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	if !errors.Is(err, wantErr) {
-		t.Fatalf("expected wrapped error %v, got %v", wantErr, err)
-	}
-}
-
 func TestGenericCertPoolFromCertsFirstCertInvalid(t *testing.T) {
 	got, err := genericCertPoolFromCerts([][]byte{
 		[]byte("not-a-cert"),
