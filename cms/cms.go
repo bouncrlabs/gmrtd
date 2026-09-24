@@ -891,7 +891,7 @@ RFC 5280            PKIX Certificate and CRL Profile            May 2008
 			}
 */
 
-func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, trustedCerts CertPool) (certChain [][]byte, err error) {
+func (si *SignerInfo) VerifySignatureWithConfig(config *CMSConfig, sd *SignedData) (cert *Certificate, err error) {
 	var dataToHash []byte
 	var digestAlg *asn1.ObjectIdentifier
 	var signatureAlg *asn1.ObjectIdentifier
@@ -927,7 +927,7 @@ func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, truste
 
 	slog.Debug("Verify", "digestAlg", digestAlg.String(), "digest", utils.BytesToHex(digest))
 
-	cert, err := si.selectCertificate(sd)
+	cert, err = si.selectCertificate(sd)
 	if err != nil {
 		return nil, fmt.Errorf("[Verify] selectCertificate error: %w", err)
 	}
@@ -949,6 +949,15 @@ func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, truste
 	err = VerifySignature(cert.TbsCertificate.SubjectPublicKeyInfo.FullBytes, *digestAlg, digest, *signatureAlg, signature)
 	if err != nil {
 		return nil, fmt.Errorf("[Verify] VerifySignature error: %w", err)
+	}
+
+	return cert, nil
+}
+
+func (si *SignerInfo) VerifyWithConfig(config *CMSConfig, sd *SignedData, trustedCerts CertPool) (certChain [][]byte, err error) {
+	cert, err := si.VerifySignatureWithConfig(config, sd)
+	if err != nil {
+		return nil, err
 	}
 
 	// record the 'initial' certificate
