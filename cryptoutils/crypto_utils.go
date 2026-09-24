@@ -294,6 +294,10 @@ func EncodeX962EcPoint(ec elliptic.Curve, point *EcPoint) []byte {
 	return elliptic.Marshal(ec, point.X, point.Y)
 }
 
+func EncodeEcFieldElement(ec elliptic.Curve, value *big.Int) []byte {
+	return value.FillBytes(make([]byte, (ec.Params().BitSize+7)/8))
+}
+
 func DecodeX962EcPoint(ec elliptic.Curve, data []byte) (*EcPoint, error) {
 	x, y := elliptic.Unmarshal(ec, data)
 

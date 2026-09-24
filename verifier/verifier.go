@@ -64,12 +64,18 @@ func (v *Verifier) Verify(data []byte) (*document.DocumentEx, error) {
 
 	if caBundle.PaceCam != nil {
 		docEx.Session.PaceCamResult, docEx.Session.PaceErr = pace.VerifyEvidence(doc, caBundle.PaceCam)
+	} else if caBundle.PaceCamAttempted {
+		docEx.Session.PaceCamResult = &document.PaceCamResult{}
 	}
 	if caBundle.ChipAuth != nil {
 		docEx.Session.ChipAuthResult, docEx.Session.ChipAuthErr = chipauth.VerifyEvidence(doc, caBundle.ChipAuth)
+	} else if caBundle.ChipAuthAttempted {
+		docEx.Session.ChipAuthResult = &document.ChipAuthResult{}
 	}
 	if caBundle.ActiveAuth != nil {
 		docEx.Session.ActiveAuthResult, docEx.Session.ActiveAuthErr = activeauth.VerifyEvidence(doc, caBundle.ActiveAuth)
+	} else if caBundle.ActiveAuthAttempted {
+		docEx.Session.ActiveAuthResult = &document.ActiveAuthResult{}
 	}
 
 	if v.aaChallenge != nil && caBundle.ActiveAuth != nil {

@@ -90,6 +90,9 @@ func (session Session) VerifiedChipAuthStatus() ChipAuthStatus {
 
 	// PACE-CAM key comes from CardSecurity — require it was independently verified
 	if status == CHIP_AUTH_STATUS_PACE_CAM && session.PassiveAuthResult.CardSec == nil {
+		if session.ChipAuthResult != nil && session.ChipAuthResult.Success {
+			return CHIP_AUTH_STATUS_CA
+		}
 		return CHIP_AUTH_STATUS_NONE
 	}
 
