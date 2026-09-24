@@ -130,6 +130,9 @@ func (apdu *CApdu) Encode() []byte {
 	if len(apdu.data) > 0 {
 		out = append(out, apdu.data...)
 	}
+	if apdu.IsExtended() && !apdu.HaveData() && apdu.HaveLe() {
+		out = append(out, 0)
+	}
 	out = append(out, apdu.EncodeLe()...)
 
 	slog.Debug("cApdu.Encode", "cApdu", apdu.String(), "cApdu-bytes", utils.BytesToHex(out))

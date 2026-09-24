@@ -770,6 +770,9 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, camResult *document.Pac
 	// update result to indicate the selected OID/ParameterId
 	result.Oid = paceConfig.oid
 	result.ParameterId = domainParams.id
+	if paceConfig.mapping == CAM {
+		camResult = &document.PaceCamResult{}
+	}
 
 	slog.Debug("DoPace", "selected paceConfig", paceConfig.String())
 
@@ -777,7 +780,7 @@ func (pace *Pace) DoPACE() (result *document.PaceResult, camResult *document.Pac
 
 	kKdf, err = keyForPassword(paceConfig, pace.password)
 	if err != nil {
-		return result, nil, fmt.Errorf("[DoPACE] keyForPassword error: %w", err)
+		return result, camResult, fmt.Errorf("[DoPACE] keyForPassword error: %w", err)
 	}
 
 	camEvidence, err := pace.runProtocol(paceConfig, domainParams, kKdf)
