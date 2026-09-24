@@ -19,6 +19,35 @@ func PassiveAuth(doc *document.Document, trustedCerts cms.CertPool) (result *doc
 	// setup the result (but mark as !success)
 	result = &document.PassiveAuthResult{Success: false}
 
+	/*
+	* verify EF.SOD (mandatory)
+	 */
+	if doc.Mf.Lds1.Sod == nil {
+		return result, fmt.Errorf("[PassiveAuth] mandatory file EF.SOD is missing")
+	}
+
+	// validate that any data-groups that are covered by SoD proection have valid hashes
+	result.DataGroupHashesValid = new(bool)
+	if err = validateDgHashes(*doc); err != nil {
+		return result, fmt.Errorf("[PassiveAuth] validateDgHashes error: %w", err)
+	}
+	*result.DataGroupHashesValid = true
+
+	result.SodSignatureValid = new(bool)
+	if len(doc.Mf.Lds1.Sod.SD.SignerInfos) < 1 {
+		return result, fmt.Errorf("[PassiveAuth] SOD has no SignerInfos")
+	}
+	var certs []*cms.Certificate
+	for i := range doc.Mf.Lds1.Sod.SD.SignerInfos {
+		cert, err := doc.Mf.Lds1.Sod.SD.SignerInfos[i].VerifySignatureWithConfig(cms.NewDefaultCMSConfig(), doc.Mf.Lds1.Sod.SD)
+		if err != nil {
+			return result, fmt.Errorf("[PassiveAuth] unable to verify SignedData (SOD): %w", err)
+		}
+		certs = append(certs, cert)
+	}
+	*result.SodSignatureValid = true
+
+	result.CscaChainValid = new(bool)
 	countryCscaCertPool, err := countryCscaCerts(doc, trustedCerts)
 	if err != nil {
 		return result, fmt.Errorf("[PassiveAuth] error getting country CSCA certs: %w", err)
@@ -27,25 +56,21 @@ func PassiveAuth(doc *document.Document, trustedCerts cms.CertPool) (result *doc
 		return result, fmt.Errorf("[PassiveAuth] Cannot perform Passive-Auth as unable to locate any CSCA Certificates for the MRZ Country")
 	}
 
-	/*
-	* verify EF.SOD (mandatory)
-	 */
-	if doc.Mf.Lds1.Sod == nil {
-		return result, fmt.Errorf("[PassiveAuth] mandatory file EF.SOD is missing")
-	} else {
-		// validate that any data-groups that are covered by SoD proection have valid hashes
-		if err = validateDgHashes(*doc); err != nil {
-			return result, fmt.Errorf("[PassiveAuth] validateDgHashes error: %w", err)
-		}
-
-		result.Sod = &document.PassiveAuth{}
-		result.Sod.CertChain, err = doc.Mf.Lds1.Sod.SD.Verify(countryCscaCertPool)
+	result.Sod = &document.PassiveAuth{}
+	for _, cert := range certs {
+		chain, err := cert.Verify(countryCscaCertPool)
 		if err != nil {
 			return result, fmt.Errorf("[PassiveAuth] unable to verify SignedData (SOD): %w", err)
 		}
-
-		slog.Debug("PassiveAuth", "certChain(SOD)-cnt", len(result.Sod.CertChain))
+		result.Sod.CertChain = append(result.Sod.CertChain, bytes.Clone(cert.Raw))
+		result.Sod.CertChain = append(result.Sod.CertChain, chain...)
 	}
+	*result.CscaChainValid = true
+
+	slog.Debug("PassiveAuth", "certChain(SOD)-cnt", len(result.Sod.CertChain))
+
+	// update result to indicate success
+	result.Success = true
 
 	/*
 	* verify CardSecurity (if present)
@@ -54,14 +79,12 @@ func PassiveAuth(doc *document.Document, trustedCerts cms.CertPool) (result *doc
 		result.CardSec = &document.PassiveAuth{}
 		result.CardSec.CertChain, err = doc.Mf.CardSecurity.SD.Verify(countryCscaCertPool)
 		if err != nil {
+			result.CardSec = nil
 			return result, fmt.Errorf("[PassiveAuth] unable to verify SignedData (CardSecurity): %w", err)
 		}
 
 		slog.Debug("PassiveAuth", "certChain(CardSecurity)-cnt", len(result.CardSec.CertChain))
 	}
-
-	// update result to indicate success
-	result.Success = true
 
 	return result, nil
 }
