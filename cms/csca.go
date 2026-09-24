@@ -83,7 +83,8 @@ func GermanMasterList() (*SignedDataCertPool, error) {
 }
 
 func DutchMasterList() (*SignedDataCertPool, error) {
-	return createCertPoolFromSignedDataFn(nl_masterList, nl_masterListRootCA)
+	var out SignedDataCertPool
+	return &out, out.Add(nl_masterList)
 }
 
 func Indonesian2010SeriesCerts() (*GenericCertPool, error) {
