@@ -28,6 +28,17 @@ type CscaMasterListCert struct {
 // creates a cert-pool from the signed-data, and validates it against the root-cert
 // returns: error
 func CreateCertPoolFromSignedData(signedDataBytes, rootCertBytes []byte) (*SignedDataCertPool, error) {
+	rootCertPool := &GenericCertPool{}
+	if err := rootCertPool.Add(rootCertBytes); err != nil {
+		return nil, fmt.Errorf("[CreateCertPoolFromSignedData] rootCertPool .add error: %w", err)
+	}
+
+	return CreateCertPoolFromSignedDataWithPool(signedDataBytes, rootCertPool)
+}
+
+// creates a cert-pool from the signed-data, and validates it against any cert in the trusted pool
+// returns: error
+func CreateCertPoolFromSignedDataWithPool(signedDataBytes []byte, trusted CertPool) (*SignedDataCertPool, error) {
 	var out SignedDataCertPool
 	var err error
 
@@ -37,17 +48,11 @@ func CreateCertPoolFromSignedData(signedDataBytes, rootCertBytes []byte) (*Signe
 		return nil, fmt.Errorf("[CreateCertPoolFromSignedData] ParseSignedData error: %w", err)
 	}
 
-	rootCertPool := &GenericCertPool{}
-	err = rootCertPool.Add(rootCertBytes)
-	if err != nil {
-		return nil, fmt.Errorf("[CreateCertPoolFromSignedData] rootCertPool .add error: %w", err)
-	}
-
 	/*
 	 * verify the signed data object
 	 */
 	var certChain [][]byte
-	certChain, err = signedData.Verify(rootCertPool)
+	certChain, err = signedData.Verify(trusted)
 	if err != nil {
 		return nil, fmt.Errorf("[CreateCertPoolFromSignedData] signedData.Verify error: %w", err)
 	}
