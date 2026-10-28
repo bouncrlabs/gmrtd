@@ -46,7 +46,7 @@ type cborChipAuthBundle struct {
 
 const chipAuthEvidenceMagic = "gmrtd-chip-auth-evidence"
 const chipAuthEvidenceMinVersion uint = 2 // v1 lacked TermMapPub and TermKaPub
-const chipAuthEvidenceVersion uint = 2
+const chipAuthEvidenceVersion uint = 3
 
 type ChipAuthEvidenceBundle struct {
 	PaceCamAttempted    bool
